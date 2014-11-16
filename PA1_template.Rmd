@@ -1,0 +1,132 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+author: "Carlor Roberto"
+date: "Wednesday, November 12, 2014"
+output: html_document
+keep_md: true
+---
+
+This project makes use of data from a personal activity monitoring device.
+This device collects data at 5 minute intervals through out the day. The data
+consists of two months of data from an anonymous individual collected during
+the months of October and November, 2012 and include the number of steps
+taken in 5 minute intervals each day
+
+### load libraries
+```{r}
+library(lubridate)
+library(plyr)
+library(dplyr)
+library(sqldf)
+```
+
+## Loading and preprocessing the data
+```{r echo=TRUE}
+
+df <- read.csv(file = "activity.csv", header = TRUE, na.strings = "NA", sep = ",")
+
+str(df)
+```
+### filter invalid data
+```{r echo=TRUE}
+dfna <- na.omit(df)
+str(dfna)
+```
+### plot histogram of the total number of steps taken each day
+```{r echo=TRUE}
+dfstep <- dfna[,c("steps","date","interval")]
+dfstep$date <- ymd(dfstep$date)
+with(dfstep, plot(steps ~ date, type="h"))
+```
+
+## What is mean total number of steps taken per day?
+Mean and median can be calculated using the mean() and median() functions
+
+```{r echo=TRUE}
+df_mean <- ddply(dfna, ~ date, summarise, mean = mean(steps), median = median(steps))
+print(df_mean)
+```
+
+## What is the average daily activity pattern?
+Once we have the vaerage per day, it is easy to calculate the average daily
+```{r echo=TRUE}
+mean(df_mean$mean)
+```
+### plot the steps against the 5-minute interval
+```{r echo=TRUE}
+histdata <- with(dfstep, plot(steps ~ interval, type="h"))
+```
+Checking the graphyc we can see that the 5-minute interval with maximum number of steps is 7:20 am
+
+## Imputing missing values
+```{r echo=TRUE}
+nas <- is.na(df[,1])
+count.na <- table(nas)[2]
+```
+1. Number of missing NAs
+```{r echo=TRUE}
+print(count.na)
+```
+2. A good approach to fill NAs is to use the mean calculated in df_men
+
+3. create a new dataset based on fill NAs
+```{r echo=TRUE}
+newdf <- df
+getdate=NULL
+getmean=df[1,]
+for(i in 1:nrow(df)){
+    if(is.na(df[i,1]) && (df[i,"date"] == "2012-10-01" || df[i,"date"] == "2012-10-08" || df[i,"date"] == "2012-11-01" || df[i,"date"] == "2012-11-04" || df[i,"date"] == "2012-11-09" || df[i,"date"] == "2012-11-10" || df[i,"date"] == "2012-11-14" || df[i,"date"] == "2012-11-30" )){
+       newdf[i,1] <- 0
+       next
+    }    
+    # now fill the remaining with mean value    
+    if(is.na(df[i,1])){
+        getdate <- as.character(df[i,"date"])
+        m=0
+        for(j in 1:nrow(df_mean)){
+            if(as.character(df_mean[j,"date"]) == getdate){
+                m = df_mean[j,"mean"]    
+                break
+            }
+        }
+        # fill with mean
+        #newdf[i,"steps"] <- m    
+        
+    }
+}
+```
+4. No, as we can see in the histogram, there is no impact of imputting missing as we replaced NA by zero values in dataframe.
+
+```{r echo=TRUE}
+ndf_mean <- ddply(newdf, ~ date, summarise, mean = mean(steps), median = median(steps))
+#print(ndf_mean)
+mean(ndf_mean$mean)
+#nhistdata <- with(dfstep, plot(steps ~ interval, type="h"))
+ndfstep <- newdf[,c("steps","date","interval")]
+ndfstep$date <- ymd(ndf_mean$date)
+with(ndfstep, plot(steps ~ interval, type="h"))
+```
+
+## Are there differences in activity patterns between weekdays and weekends?
+Yes, we can see that there are more activity during weekdays than weekends
+
+```{r}
+w.ndfstep <- ndfstep
+w.ndfstep["week"] <- weekdays(as.Date(ndfstep$date), abbreviate=T)
+for(i in 1:nrow(w.ndfstep)){
+    if(w.ndfstep[i,"week"] == "sab" || w.ndfstep[i,"week"] == "dom" )
+        w.ndfstep[i,"week"] = "weekend"
+    else
+        w.ndfstep[i,"week"] = "weekday"
+}
+w.ndfstep$wee = as.factor(w.ndfstep$wee)
+```
+# load the library and plot
+```{r}
+library(lattice)
+xyplot(steps ~ interval | week, data = w.ndfstep, layout = c(1,2), type = "l")
+
+```
+
+
+
